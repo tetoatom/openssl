@@ -1,0 +1,101 @@
+#!/bin/bash
+
+PREFIX="$(pwd)/build";
+MAKE_LOGS="${PREFIX}/log";
+OPENSSLDIR="${PREFIX}/Release";
+CROSS_DEVELOPER="$(xcode-select -print-path)";
+
+PS3="please select iOS version > "
+select item in $(xcodebuild -showsdks | grep iphoneos | awk '{print $NF}' | sed -e "s@iphoneos@@g")
+do
+    if [ "${REPLY}" = "q" ]; then
+        echo "Exit from system."
+        exit 0
+    fi
+    if [ -z "$item" ] ; then
+        continue
+    fi
+    case "$item" in
+        quit ) echo "Exit from system."
+           break ;;
+        * ) echo "you select $item ($REPLY)"
+           break ;;
+    esac
+done
+
+SDKVER=${item};
+
+mkdir -p ${MAKE_LOGS};
+
+SSLLIBS="";
+CRYPTOLIBS="";
+DELEGATE_ARCHDIR="";
+ARCHS="i386 arm64 armv7 armv7s"
+#ARCHS="arm64 armv7 armv7s"
+for arch in ${ARCHS}; do
+    if [[ "${arch}" == "i386" ]]; then
+        export CROSS_TYPE=Simulator
+        ARCH_OPTIONS="BSD-generic32";
+    else
+        export CROSS_TYPE=OS
+        ARCH_OPTIONS="iphoneos-cross";
+    fi
+
+    export CROSS_TOP="${CROSS_DEVELOPER}/Platforms/iPhone${CROSS_TYPE}.platform/Developer";
+    export CROSS_CHAIN="${CROSS_TOP}/usr/bin/";
+    export CROSS_SDK="iPhone${CROSS_TYPE}${SDKVER}.sdk";
+    export CROSS_ARCH="${CROSS_SDK}-${arch}";
+    export CONFIG_OPTIONS="no-asm no-dso no-shared ${ARCH_OPTIONS} --openssldir=${OPENSSLDIR}/${CROSS_ARCH}";
+
+    SSLLIB="${OPENSSLDIR}/${CROSS_ARCH}/lib/libssl.a";
+    CRYPTOLIB="${OPENSSLDIR}/${CROSS_ARCH}/lib/libcrypto.a";
+
+    if [[ "" == ${SSLLIBS} ]]; then
+        DELEGATE_ARCHDIR="${OPENSSLDIR}/${CROSS_ARCH}";
+        SSLLIBS=${SSLLIB};
+    else
+        SSLLIBS="${SSLLIBS} ${SSLLIB}";
+    fi
+
+    if [[ "" == ${CRYPTOLIBS} ]]; then
+        CRYPTOLIBS=${CRYPTOLIB};
+    else
+        CRYPTOLIBS="${CRYPTOLIBS} ${CRYPTOLIB}";
+    fi
+
+    mkdir -p ${OPENSSLDIR}/${CROSS_ARCH};
+
+    ./Configure ${CONFIG_OPTIONS};
+    perl -pi -e "s@(^CC=.*)@CC= ${CROSS_DEVELOPER}/usr/bin/gcc -arch ${arch}@" Makefile;
+
+    #make 2>&1 | tee ${MAKE_LOGS}/${CROSS_ARCH}-build.log
+    make; 
+    if [[ 0 != $? ]]; then
+        echo "make error ${CROSS_ARCH}";
+        exit 1;
+    fi
+
+    #make install 2>&1 | tee ${MAKE_LOGS}/${CROSS_ARCH}-install.log
+    make install;
+    if [[ 0 != $? ]]; then
+        echo "install error ${CROSS_ARCH}";
+        exit 1;
+    fi
+
+    #make clean 2>&1 | tee ${MAKE_LOGS}/${CROSS_ARCH}-clean.log
+    make clean;
+    if [[ 0 != $? ]]; then
+        echo "clean error ${CROSS_ARCH}";
+        exit 1;
+    fi
+done
+
+mkdir -p ${OPENSSLDIR}/lib
+lipo -create ${SSLLIBS} -output ${OPENSSLDIR}/lib/libssl.a
+lipo -create ${CRYPTOLIBS} -output ${OPENSSLDIR}/lib/libcrypto.a
+
+mkdir -p ${OPENSSLDIR}/include
+cp -R ${DELEGATE_ARCHDIR}/include/openssl ${OPENSSLDIR}/include/
+
+echo "Done."
+
