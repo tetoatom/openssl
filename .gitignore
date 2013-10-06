@@ -19,7 +19,7 @@
 /makefile.*
 /out.*
 /tmp.*
-/build
+/Build
 
 # Most *.c files under test/ are symlinks
 /test/*.c

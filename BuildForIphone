@@ -95,5 +95,5 @@ lipo -create ${CRYPTOLIBS} -output ${INSTALLDIR}/lib/libcrypto.a
 mkdir -p ${INSTALLDIR}/include
 cp -R ${DELEGATE_ARCHDIR}/include/openssl ${INSTALLDIR}/include/
 
-echo "Done."
+echo; echo "Done."
 
