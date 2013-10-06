@@ -1,9 +1,10 @@
 #!/bin/bash
 
-PREFIX="$(pwd)/build";
+PREFIX="$(pwd)/Build";
 MAKE_LOGS="${PREFIX}/log";
-OPENSSLDIR="${PREFIX}/Release";
+OPENSSLDIR="${PREFIX}/tmp";
 CROSS_DEVELOPER="$(xcode-select -print-path)";
+INSTALLDIR="${OPENSSLDIR}/../openssl-for-iphone";
 
 PS3="please select iOS version > "
 select item in $(xcodebuild -showsdks | grep iphoneos | awk '{print $NF}' | sed -e "s@iphoneos@@g")
@@ -31,7 +32,6 @@ SSLLIBS="";
 CRYPTOLIBS="";
 DELEGATE_ARCHDIR="";
 ARCHS="i386 arm64 armv7 armv7s"
-#ARCHS="arm64 armv7 armv7s"
 for arch in ${ARCHS}; do
     if [[ "${arch}" == "i386" ]]; then
         export CROSS_TYPE=Simulator
@@ -68,34 +68,32 @@ for arch in ${ARCHS}; do
     ./Configure ${CONFIG_OPTIONS};
     perl -pi -e "s@(^CC=.*)@CC= ${CROSS_DEVELOPER}/usr/bin/gcc -arch ${arch}@" Makefile;
 
-    #make 2>&1 | tee ${MAKE_LOGS}/${CROSS_ARCH}-build.log
-    make; 
-    if [[ 0 != $? ]]; then
+    #make build_libs 2>&1 | tee ${MAKE_LOGS}/${CROSS_ARCH}-build.log
+    make 2>&1 | tee ${MAKE_LOGS}/${CROSS_ARCH}-build.log
+    if [[ 0 != ${PIPESTATUS[0]} ]]; then
         echo "make error ${CROSS_ARCH}";
         exit 1;
     fi
 
-    #make install 2>&1 | tee ${MAKE_LOGS}/${CROSS_ARCH}-install.log
-    make install;
-    if [[ 0 != $? ]]; then
+    make install_sw 2>&1 | tee ${MAKE_LOGS}/${CROSS_ARCH}-install.log
+    if [[ 0 != ${PIPESTATUS[0]} ]]; then
         echo "install error ${CROSS_ARCH}";
         exit 1;
     fi
 
-    #make clean 2>&1 | tee ${MAKE_LOGS}/${CROSS_ARCH}-clean.log
-    make clean;
-    if [[ 0 != $? ]]; then
+    make clean 2>&1 | tee ${MAKE_LOGS}/${CROSS_ARCH}-clean.log
+    if [[ 0 != ${PIPESTATUS[0]} ]]; then
         echo "clean error ${CROSS_ARCH}";
         exit 1;
     fi
 done
 
-mkdir -p ${OPENSSLDIR}/lib
-lipo -create ${SSLLIBS} -output ${OPENSSLDIR}/lib/libssl.a
-lipo -create ${CRYPTOLIBS} -output ${OPENSSLDIR}/lib/libcrypto.a
+mkdir -p ${INSTALLDIR}/lib
+lipo -create ${SSLLIBS} -output ${INSTALLDIR}/lib/libssl.a
+lipo -create ${CRYPTOLIBS} -output ${INSTALLDIR}/lib/libcrypto.a
 
-mkdir -p ${OPENSSLDIR}/include
-cp -R ${DELEGATE_ARCHDIR}/include/openssl ${OPENSSLDIR}/include/
+mkdir -p ${INSTALLDIR}/include
+cp -R ${DELEGATE_ARCHDIR}/include/openssl ${INSTALLDIR}/include/
 
 echo "Done."
 
