@@ -31,11 +31,14 @@ mkdir -p ${MAKE_LOGS};
 SSLLIBS="";
 CRYPTOLIBS="";
 DELEGATE_ARCHDIR="";
-ARCHS="i386 arm64 armv7 armv7s"
+ARCHS="x86_64 i386 arm64 armv7 armv7s"
 for arch in ${ARCHS}; do
     if [[ "${arch}" == "i386" ]]; then
         export CROSS_TYPE=Simulator
         ARCH_OPTIONS="BSD-generic32";
+    elif [[ "${arch}" == "x86_64" ]]; then
+        export CROSS_TYPE=Simulator
+        ARCH_OPTIONS="BSD-generic64";
     else
         export CROSS_TYPE=OS
         ARCH_OPTIONS="iphoneos-cross";
